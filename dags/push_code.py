@@ -1,49 +1,23 @@
-from __future__ import print_function
-#from builtins import range
-from airflow.operators import PythonOperator
-from airflow.models import DAG
+from airflow import DAG
+from airflow.operators import BashOperator,PythonOperator
 from datetime import datetime, timedelta
 
-import time
-from pprint import pprint
+seven_days_ago = datetime.combine(datetime.today() - timedelta(7),
+                                      datetime.min.time())
 
-seven_days_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
+default_args = {
+        'owner': 'airflow',
+        'depends_on_past': False,
+        'start_date': seven_days_ago,
+        'email': ['airflow@airflow.com'],
+        'email_on_failure': False,
+        'email_on_retry': False,
+        'retries': 1,
+        'retry_delay': timedelta(minutes=5),
+      }
 
-args = {
-    'owner': 'sameer',
-    'start_date': seven_days_ago,
-}
-
-dag = DAG(
-    dag_id='push_my_code', default_args=args,
-    schedule_interval=None)
-
-
-def my_sleeping_function(random_base):
-    '''This is a function that will run within the DAG execution'''
-    time.sleep(random_base)
-
-
-def print_context(ds, **kwargs):
-    pprint(kwargs)
-    print(ds)
-    return 'Whatever you return gets printed in the logs'
-
-run_this = PythonOperator(
-    task_id='print_the_context',
-    provide_context=True,
-    python_callable=print_context,
+dag = DAG('commit_push', default_args=default_args)
+t1 = BashOperator(
+    task_id='testairflow',
+    bash_command='python /usr/local/CODE/mymac/commit_push.py',
     dag=dag)
-
-for i in range(10):
-    '''
-    Generating 10 sleeping task, sleeping from 0 to 9 seconds
-    respectively
-    '''
-    task = PythonOperator(
-        task_id='sleep_for_'+str(i),
-        python_callable=my_sleeping_function,
-        op_kwargs={'random_base': float(i)/10},
-        dag=dag)
-
-    task.set_upstream(run_this)
